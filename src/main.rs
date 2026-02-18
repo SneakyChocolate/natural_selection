@@ -6,11 +6,19 @@
 
 */
 use bevy::{input::mouse::AccumulatedMouseScroll, prelude::*};
-use rand::{Rng, RngExt};
+use rand::RngExt;
 
 // rs ant mesh
 #[derive(Resource)]
 pub struct AntMesh(pub Handle<Mesh>);
+
+// rs delta time
+#[derive(Resource)]
+pub struct DeltaTime(pub f32);
+
+// rs time multiplier
+#[derive(Resource)]
+pub struct TimeMultiplier(pub f32);
 
 // rs food mesh
 #[derive(Resource)]
@@ -145,6 +153,8 @@ fn main() {
         .add_systems(Update, (
             food_color_system,
             despawn_food_system,
+            delta_time_system,
+            time_multiplier_system,
         ))
         .run()
     ;
@@ -157,6 +167,8 @@ fn setup(
 ) {
     commands.insert_resource(AntMesh(meshes.add(Circle::new(10.0))));
     commands.insert_resource(FoodMesh(meshes.add(Circle::new(20.0))));
+    commands.insert_resource(DeltaTime(0.));
+    commands.insert_resource(TimeMultiplier(1.));
 }
 
 // fn spawn entities
@@ -219,11 +231,12 @@ fn zoom_system(mouse_wheel: Res<AccumulatedMouseScroll>, camera_query: Single<&m
 fn ant_movement(
     ant_query: Query<(&Transform, &mut Velocity, &Speed, &Hunger, &Vision), With<Ant>>,
     food_query: Query<&Transform, With<Food>>,
+    dt: Res<DeltaTime>,
 ) {
     let mut rng = rand::rng();
     for (ant_transform, mut velocity, ant_speed, ant_hunger, ant_vision) in ant_query {
-        velocity.0.x += rng.random_range(-10.0..10.0);
-        velocity.0.y += rng.random_range(-10.0..10.0);
+        velocity.0.x += rng.random_range(-1000.0..1000.0) * dt.0;
+        velocity.0.y += rng.random_range(-1000.0..1000.0) * dt.0;
         if velocity.0.length() > ant_speed.0 {
             velocity.0 = velocity.0.normalize_or_zero() * ant_speed.0;
         }
@@ -282,22 +295,21 @@ fn ant_eating(
 // fn velocity system
 fn velocity_system(
     query: Query<(&mut Transform, &Velocity)>,
-    time: Res<Time>,
+    dt: Res<DeltaTime>,
 ) {
-    let dt = time.delta_secs();
     for (mut transform, velocity) in query {
-        transform.translation.x += velocity.0.x * dt;
-        transform.translation.y += velocity.0.y * dt;
+        transform.translation.x += velocity.0.x * dt.0;
+        transform.translation.y += velocity.0.y * dt.0;
     }
 }
 
 // fn hunger system
 fn hunger_system(
     query: Query<(&mut Hunger)>,
-    time: Res<Time>,
+    dt: Res<DeltaTime>,
 ) {
     for mut hunger in query {
-        hunger.current -= time.delta_secs();
+        hunger.current -= dt.0;
     }
 }
 
@@ -336,4 +348,27 @@ fn food_color_system(
         }
     }
 }
+
+// fn delta time system
+fn delta_time_system(
+    time: Res<Time>,
+    time_multiplier: Res<TimeMultiplier>,
+    mut dt: ResMut<DeltaTime>,
+) {
+    dt.0 = time.delta_secs() * time_multiplier.0;
+}
+
+// fn time multiplier system
+fn time_multiplier_system(
+    key_input: Res<ButtonInput<KeyCode>>,
+    mut time_multiplier: ResMut<TimeMultiplier>,
+) {
+    if key_input.pressed(KeyCode::KeyL) {
+        time_multiplier.0 *= 1.01;
+    }
+    if key_input.pressed(KeyCode::KeyH) {
+        time_multiplier.0 *= 0.99;
+    }
+}
+
 
