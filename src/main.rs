@@ -26,11 +26,47 @@ pub struct Ant;
 
 // cp hunger
 #[derive(Component)]
-pub struct Hunger(pub f32);
+pub struct Hunger {
+    pub current: f32,
+    pub max: f32,
+}
+
+impl Hunger {
+    pub fn new(max: f32) -> Self {
+        Self {
+            current: max,
+            max,
+        }
+    }
+    pub fn percentage(&self) -> f32 {
+        self.current / self.max
+    }
+    pub fn needed(&self) -> f32 {
+        self.max - self.current
+    }
+}
 
 // cp food
 #[derive(Component)]
-pub struct Food(pub f32);
+pub struct Food {
+    pub current: f32,
+    pub max: f32,
+}
+
+impl Food {
+    pub fn new(max: f32) -> Self {
+        Self {
+            current: max,
+            max,
+        }
+    }
+    pub fn percentage(&self) -> f32 {
+        self.current / self.max
+    }
+    pub fn needed(&self) -> f32 {
+        self.max - self.current
+    }
+}
 
 // cp velocity
 #[derive(Component, Default, Copy, Clone)]
@@ -46,7 +82,7 @@ pub fn spawn_ant(
 ) {
     commands.spawn((
         Ant,
-        Hunger(10.),
+        Hunger::new(20.),
         Velocity::default(),
         Mesh2d(ant_mesh.0.clone()),
         MeshMaterial2d(materials.add(Color::srgb(0., 1., 0.))),
@@ -71,9 +107,9 @@ pub fn spawn_food(
     transform: Transform,
 ) {
     commands.spawn((
-        Food(100.),
+        Food::new(100.),
         Mesh2d(food_mesh.0.clone()),
-        MeshMaterial2d(materials.add(Color::srgb(1., 1., 0.))),
+        MeshMaterial2d(materials.add(Color::srgba(1., 1., 0., 0.5))),
         transform,
     ));
 }
@@ -92,6 +128,10 @@ fn main() {
             zoom_system,
             hunger_system,
             kill_system,
+            ant_eating,
+        ))
+        .add_systems(Update, (
+            food_color_system,
         ))
         .run()
     ;
@@ -162,23 +202,43 @@ fn zoom_system(mouse_wheel: Res<AccumulatedMouseScroll>, camera_query: Single<&m
 
 // fn ant movement
 fn ant_movement(
-    ant_query: Query<(&Transform, &mut Velocity, &Speed), With<Ant>>,
+    ant_query: Query<(&Transform, &mut Velocity, &Speed, &Hunger), With<Ant>>,
     food_query: Query<&Transform, With<Food>>,
 ) {
     let mut rng = rand::rng();
-    for (ant_transform, mut velocity, ant_speed) in ant_query {
+    for (ant_transform, mut velocity, ant_speed, ant_hunger) in ant_query {
         velocity.0.x += rng.random_range(-10.0..10.0);
         velocity.0.y += rng.random_range(-10.0..10.0);
         if velocity.0.length() > ant_speed.0 {
             velocity.0 = velocity.0.normalize_or_zero() * ant_speed.0;
         }
 
-        for food_transform in food_query {
+        if ant_hunger.percentage() < 0.8 {
+            for food_transform in food_query {
+                let delta_translation = food_transform.translation - ant_transform.translation;
+                if delta_translation.length() < 100. {
+                    let new_velocity = delta_translation.normalize_or_zero() * ant_speed.0;
+                    velocity.0.x = new_velocity.x;
+                    velocity.0.y = new_velocity.y;
+                }
+            }
+        }
+    }
+}
+
+// fn ant eating
+fn ant_eating(
+    mut ant_query: Query<(&Transform, &mut Hunger), With<Ant>>,
+    mut food_query: Query<(&Transform, &mut Food)>,
+) {
+    for (ant_transform, mut ant_hunger) in &mut ant_query {
+        for (food_transform, mut food_value) in &mut food_query {
             let delta_translation = food_transform.translation - ant_transform.translation;
-            if delta_translation.length() < 100. {
-                let new_velocity = delta_translation.normalize_or_zero() * ant_speed.0;
-                velocity.0.x = new_velocity.x;
-                velocity.0.y = new_velocity.y;
+            if delta_translation.length() < 20. {
+                let needed = ant_hunger.needed();
+                let taking = food_value.current.min(needed);
+                food_value.current -= taking;
+                ant_hunger.current += taking;
             }
         }
     }
@@ -202,7 +262,7 @@ fn hunger_system(
     time: Res<Time>,
 ) {
     for mut hunger in query {
-        hunger.0 -= time.delta_secs();
+        hunger.current -= time.delta_secs();
     }
 }
 
@@ -212,8 +272,20 @@ fn kill_system(
     query: Query<(Entity, &Hunger)>,
 ) {
     for (entity, hunger) in query {
-        if hunger.0 <= 0. {
+        if hunger.current <= 0. {
             commands.entity(entity).despawn();
+        }
+    }
+}
+
+// fn food color system
+fn food_color_system(
+    query: Query<(&MeshMaterial2d<ColorMaterial>, &Food)>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (material_handle, food) in query {
+        if let Some (material) = materials.get_mut(material_handle) {
+            material.color.set_alpha(food.percentage());
         }
     }
 }
