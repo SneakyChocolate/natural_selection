@@ -5,7 +5,7 @@
 // rs == bevy resource
 
 */
-use bevy::prelude::*;
+use bevy::{input::mouse::AccumulatedMouseScroll, prelude::*};
 
 // rs ant mesh
 #[derive(Resource)]
@@ -27,7 +27,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
-        .add_systems(Update, (velocity_system, ant_movement))
+        .add_systems(Update, (velocity_system, ant_movement, zoom_camera))
         .run()
     ;
 }
@@ -56,6 +56,21 @@ fn setup(
         
         Transform::default(),
     ));
+}
+
+// fn zoom camera
+fn zoom_camera(mouse_wheel: Res<AccumulatedMouseScroll>, camera_query: Single<&mut Projection, With<Camera>>){
+    match &mut *camera_query.into_inner() {
+        Projection::Orthographic(orthographic) => {
+            if mouse_wheel.delta.y < 0. {
+                orthographic.scale *= 1.1;
+            }
+            else if mouse_wheel.delta.y > 0. {
+                orthographic.scale *= 0.9;
+            }
+        }
+        _ => (),
+    }
 }
 
 // fn ant movement
