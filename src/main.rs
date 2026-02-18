@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 /*
 
 // fn == function
@@ -11,6 +13,10 @@ use rand::RngExt;
 // rs ant mesh
 #[derive(Resource)]
 pub struct AntMesh(pub Handle<Mesh>);
+
+// rs ant mesh
+#[derive(Resource)]
+pub struct FoodChunks(pub [Vec<Entity>; 100 * 100]);
 
 // rs zoom
 #[derive(Resource)]
@@ -176,6 +182,7 @@ fn setup(
     commands.insert_resource(DeltaTime(0.));
     commands.insert_resource(TimeMultiplier(1.));
     commands.insert_resource(Zoom(1.));
+    commands.insert_resource(FoodChunks(std::array::from_fn(|_| Vec::with_capacity(300))));
 }
 
 // fn spawn entities
@@ -207,7 +214,7 @@ fn spawn_entities(
     }
 
     // spawn food
-    for _ in 0..200 {
+    for _ in 0..2000 {
         spawn_food(
             &mut commands,
             &mut meshes,
