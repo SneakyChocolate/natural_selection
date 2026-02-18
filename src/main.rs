@@ -16,9 +16,13 @@ pub struct AntMesh(pub Handle<Mesh>);
 #[derive(Resource)]
 pub struct FoodMesh(pub Handle<Mesh>);
 
-// cp ant
+// cp speed
 #[derive(Component)]
 pub struct Speed(pub f32);
+
+// cp vision
+#[derive(Component)]
+pub struct Vision(pub f32);
 
 // cp ant
 #[derive(Component)]
@@ -80,6 +84,7 @@ pub fn spawn_ant(
     ant_mesh: &Res<AntMesh>,
     transform: Transform,
     speed: f32,
+    vision: f32,
 ) {
     commands.spawn((
         Ant,
@@ -88,12 +93,18 @@ pub fn spawn_ant(
         Mesh2d(ant_mesh.0.clone()),
         MeshMaterial2d(materials.add(Color::srgb(0., 1., 0.))),
         Speed(speed),
+        Vision(vision),
 
-        children![(
-            Mesh2d(meshes.add(Circle::new(100.0).to_ring(2.))),
-            MeshMaterial2d(materials.add(Color::srgb(1., 1., 1.))),
-            Transform::default(),
-        )],
+        children![
+            (
+                Mesh2d(meshes.add(Circle::new(vision).to_ring(2.))),
+                MeshMaterial2d(materials.add(Color::srgba(1., 1., 1., 0.1))),
+            ),
+            (
+                Mesh2d(meshes.add(Circle::new(speed).to_ring(5.))),
+                MeshMaterial2d(materials.add(Color::srgba(0., 0., 1., 0.1))),
+            ),
+        ],
     
         transform,
     ));
@@ -133,6 +144,7 @@ fn main() {
         ))
         .add_systems(Update, (
             food_color_system,
+            despawn_food_system,
         ))
         .run()
     ;
@@ -168,6 +180,7 @@ fn spawn_entities(
             &ant_mesh,
             Transform::default(),
             200.,
+            100.,
         );
     }
 
@@ -204,11 +217,11 @@ fn zoom_system(mouse_wheel: Res<AccumulatedMouseScroll>, camera_query: Single<&m
 
 // fn ant movement
 fn ant_movement(
-    ant_query: Query<(&Transform, &mut Velocity, &Speed, &Hunger), With<Ant>>,
+    ant_query: Query<(&Transform, &mut Velocity, &Speed, &Hunger, &Vision), With<Ant>>,
     food_query: Query<&Transform, With<Food>>,
 ) {
     let mut rng = rand::rng();
-    for (ant_transform, mut velocity, ant_speed, ant_hunger) in ant_query {
+    for (ant_transform, mut velocity, ant_speed, ant_hunger, ant_vision) in ant_query {
         velocity.0.x += rng.random_range(-10.0..10.0);
         velocity.0.y += rng.random_range(-10.0..10.0);
         if velocity.0.length() > ant_speed.0 {
@@ -218,7 +231,7 @@ fn ant_movement(
         if ant_hunger.percentage() < 0.8 {
             for food_transform in food_query {
                 let delta_translation = food_transform.translation - ant_transform.translation;
-                if delta_translation.length() < 100. {
+                if delta_translation.length() < ant_vision.0 {
                     let new_velocity = delta_translation.normalize_or_zero() * ant_speed.0;
                     velocity.0.x = new_velocity.x;
                     velocity.0.y = new_velocity.y;
@@ -234,12 +247,12 @@ fn ant_eating(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     ant_mesh: Res<AntMesh>,
-    mut ant_query: Query<(&Transform, &mut Hunger, &Speed), With<Ant>>,
+    mut ant_query: Query<(&Transform, &mut Hunger, &Speed, &Vision), With<Ant>>,
     mut food_query: Query<(&Transform, &mut Food)>,
 ) {
     let mut rng = rand::rng();
 
-    for (ant_transform, mut ant_hunger, speed) in &mut ant_query {
+    for (ant_transform, mut ant_hunger, speed, vision) in &mut ant_query {
         if ant_hunger.percentage() >= 0.8 {continue;}
 
         for (food_transform, mut food_value) in &mut food_query {
@@ -250,7 +263,7 @@ fn ant_eating(
                 food_value.current -= taking;
                 ant_hunger.current += taking;
 
-                for _ in 0..2 {
+                for _ in 0..4 {
                     spawn_ant(
                         &mut commands,
                         &mut meshes,
@@ -258,6 +271,7 @@ fn ant_eating(
                         &ant_mesh,
                         ant_transform.clone(),
                         speed.0 + rng.random_range(-10.0..10.0),
+                        vision.0 + rng.random_range(-10.0..10.0),
                     );
                 }
             }
@@ -294,6 +308,18 @@ fn kill_system(
 ) {
     for (entity, hunger) in query {
         if hunger.current <= 0. {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+// fn kill system
+fn despawn_food_system(
+    mut commands: Commands,
+    query: Query<(Entity, &Food)>,
+) {
+    for (entity, food) in query {
+        if food.current <= 0. {
             commands.entity(entity).despawn();
         }
     }
