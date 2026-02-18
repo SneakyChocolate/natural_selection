@@ -22,17 +22,11 @@ pub struct Speed(pub f32);
 
 // cp ant
 #[derive(Component)]
-pub struct Ant {
-    pub hunger: f32,
-}
+pub struct Ant;
 
-impl Default for Ant {
-    fn default() -> Self {
-        Self {
-            hunger: 10.
-        }
-    }
-}
+// cp hunger
+#[derive(Component)]
+pub struct Hunger(pub f32);
 
 // cp food
 #[derive(Component)]
@@ -51,7 +45,8 @@ pub fn spawn_ant(
     transform: Transform,
 ) {
     commands.spawn((
-        Ant::default(),
+        Ant,
+        Hunger(10.),
         Velocity::default(),
         Mesh2d(ant_mesh.0.clone()),
         MeshMaterial2d(materials.add(Color::srgb(0., 1., 0.))),
@@ -87,8 +82,17 @@ pub fn spawn_food(
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_systems(Startup, (setup, spawn_entities).chain())
-        .add_systems(Update, (velocity_system, ant_movement, zoom_system))
+        .add_systems(Startup, (
+            setup,
+            spawn_entities
+        ).chain())
+        .add_systems(Update, (
+            velocity_system,
+            ant_movement,
+            zoom_system,
+            hunger_system,
+            kill_system,
+        ))
         .run()
     ;
 }
@@ -189,6 +193,28 @@ fn velocity_system(
     for (mut transform, velocity) in query {
         transform.translation.x += velocity.0.x * dt;
         transform.translation.y += velocity.0.y * dt;
+    }
+}
+
+// fn hunger system
+fn hunger_system(
+    query: Query<(&mut Hunger)>,
+    time: Res<Time>,
+) {
+    for mut hunger in query {
+        hunger.0 -= time.delta_secs();
+    }
+}
+
+// fn kill system
+fn kill_system(
+    mut commands: Commands,
+    query: Query<(Entity, &Hunger)>,
+) {
+    for (entity, hunger) in query {
+        if hunger.0 <= 0. {
+            commands.entity(entity).despawn();
+        }
     }
 }
 
