@@ -18,6 +18,10 @@ pub struct FoodMesh(pub Handle<Mesh>);
 
 // cp ant
 #[derive(Component)]
+pub struct Speed(pub f32);
+
+// cp ant
+#[derive(Component)]
 pub struct Ant {
     pub hunger: f32,
 }
@@ -29,6 +33,14 @@ impl Default for Ant {
         }
     }
 }
+
+// cp food
+#[derive(Component)]
+pub struct Food(pub f32);
+
+// cp velocity
+#[derive(Component, Default, Copy, Clone)]
+pub struct Velocity(pub Vec2);
 
 // fn spawn ant
 pub fn spawn_ant(
@@ -43,6 +55,7 @@ pub fn spawn_ant(
         Velocity::default(),
         Mesh2d(ant_mesh.0.clone()),
         MeshMaterial2d(materials.add(Color::srgb(0., 1., 0.))),
+        Speed(100.),
 
         children![(
             Mesh2d(meshes.add(Circle::new(100.0).to_ring(2.))),
@@ -68,17 +81,6 @@ pub fn spawn_food(
         MeshMaterial2d(materials.add(Color::srgb(1., 1., 0.))),
         transform,
     ));
-}
-
-// cp food
-#[derive(Component)]
-pub struct Food(pub f32);
-
-// cp velocity
-#[derive(Component, Default, Copy, Clone)]
-pub struct Velocity {
-    pub x: f32,
-    pub y: f32,
 }
 
 // fn main
@@ -156,12 +158,25 @@ fn zoom_system(mouse_wheel: Res<AccumulatedMouseScroll>, camera_query: Single<&m
 
 // fn ant movement
 fn ant_movement(
-    ant_query: Query<&mut Velocity, With<Ant>>,
+    ant_query: Query<(&Transform, &mut Velocity, &Speed), With<Ant>>,
+    food_query: Query<&Transform, With<Food>>,
 ) {
     let mut rng = rand::rng();
-    for mut velocity in ant_query {
-        velocity.x += rng.random_range(-1.0..1.0);
-        velocity.y += rng.random_range(-1.0..1.0);
+    for (ant_transform, mut velocity, ant_speed) in ant_query {
+        velocity.0.x += rng.random_range(-10.0..10.0);
+        velocity.0.y += rng.random_range(-10.0..10.0);
+        if velocity.0.length() > ant_speed.0 {
+            velocity.0 = velocity.0.normalize_or_zero() * ant_speed.0;
+        }
+
+        for food_transform in food_query {
+            let delta_translation = food_transform.translation - ant_transform.translation;
+            if delta_translation.length() < 100. {
+                let new_velocity = delta_translation.normalize_or_zero() * ant_speed.0;
+                velocity.0.x = new_velocity.x;
+                velocity.0.y = new_velocity.y;
+            }
+        }
     }
 }
 
@@ -172,8 +187,8 @@ fn velocity_system(
 ) {
     let dt = time.delta_secs();
     for (mut transform, velocity) in query {
-        transform.translation.x += velocity.x * dt;
-        transform.translation.y += velocity.y * dt;
+        transform.translation.x += velocity.0.x * dt;
+        transform.translation.y += velocity.0.y * dt;
     }
 }
 
