@@ -79,6 +79,7 @@ pub fn spawn_ant(
     materials: &mut ResMut<Assets<ColorMaterial>>,
     ant_mesh: &Res<AntMesh>,
     transform: Transform,
+    speed: f32,
 ) {
     commands.spawn((
         Ant,
@@ -86,7 +87,7 @@ pub fn spawn_ant(
         Velocity::default(),
         Mesh2d(ant_mesh.0.clone()),
         MeshMaterial2d(materials.add(Color::srgb(0., 1., 0.))),
-        Speed(200.),
+        Speed(speed),
 
         children![(
             Mesh2d(meshes.add(Circle::new(100.0).to_ring(2.))),
@@ -165,7 +166,8 @@ fn spawn_entities(
             &mut meshes,
             &mut materials,
             &ant_mesh,
-            Transform::default()
+            Transform::default(),
+            200.,
         );
     }
 
@@ -179,7 +181,7 @@ fn spawn_entities(
             Transform::from_xyz(
                 rng.random_range(-10000.0..10000.0),
                 rng.random_range(-10000.0..10000.0),
-                0.
+                0.,
             )
         );
     }
@@ -228,10 +230,18 @@ fn ant_movement(
 
 // fn ant eating
 fn ant_eating(
-    mut ant_query: Query<(&Transform, &mut Hunger), With<Ant>>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    ant_mesh: Res<AntMesh>,
+    mut ant_query: Query<(&Transform, &mut Hunger, &Speed), With<Ant>>,
     mut food_query: Query<(&Transform, &mut Food)>,
 ) {
-    for (ant_transform, mut ant_hunger) in &mut ant_query {
+    let mut rng = rand::rng();
+
+    for (ant_transform, mut ant_hunger, speed) in &mut ant_query {
+        if ant_hunger.percentage() >= 0.8 {continue;}
+
         for (food_transform, mut food_value) in &mut food_query {
             let delta_translation = food_transform.translation - ant_transform.translation;
             if delta_translation.length() < 20. {
@@ -239,6 +249,17 @@ fn ant_eating(
                 let taking = food_value.current.min(needed);
                 food_value.current -= taking;
                 ant_hunger.current += taking;
+
+                for _ in 0..2 {
+                    spawn_ant(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        &ant_mesh,
+                        ant_transform.clone(),
+                        speed.0 + rng.random_range(-10.0..10.0),
+                    );
+                }
             }
         }
     }
