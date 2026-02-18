@@ -12,6 +12,10 @@ use rand::RngExt;
 #[derive(Resource)]
 pub struct AntMesh(pub Handle<Mesh>);
 
+// rs zoom
+#[derive(Resource)]
+pub struct Zoom(pub f32);
+
 // rs delta time
 #[derive(Resource)]
 pub struct DeltaTime(pub f32);
@@ -145,7 +149,8 @@ fn main() {
         .add_systems(Update, (
             velocity_system,
             ant_movement,
-            zoom_system,
+            zoom_input_system,
+            zoom_apply_system,
             hunger_system,
             kill_system,
             ant_eating,
@@ -155,6 +160,7 @@ fn main() {
             despawn_food_system,
             delta_time_system,
             time_multiplier_system,
+            camera_movement_system,
         ))
         .run()
     ;
@@ -169,6 +175,7 @@ fn setup(
     commands.insert_resource(FoodMesh(meshes.add(Circle::new(20.0))));
     commands.insert_resource(DeltaTime(0.));
     commands.insert_resource(TimeMultiplier(1.));
+    commands.insert_resource(Zoom(1.));
 }
 
 // fn spawn entities
@@ -181,7 +188,10 @@ fn spawn_entities(
 ) {
     let mut rng = rand::rng();
 
-    commands.spawn(Camera2d);
+    commands.spawn((
+        Camera2d,
+        Transform::default(),
+    ));
 
     // spawn ants
     for _ in 0..10 {
@@ -212,18 +222,27 @@ fn spawn_entities(
     }
 }
 
-// fn zoom system
-fn zoom_system(mouse_wheel: Res<AccumulatedMouseScroll>, camera_query: Single<&mut Projection, With<Camera>>){
-    match &mut *camera_query.into_inner() {
-        Projection::Orthographic(orthographic) => {
-            if mouse_wheel.delta.y < 0. {
-                orthographic.scale *= 1.1;
-            }
-            else if mouse_wheel.delta.y > 0. {
-                orthographic.scale *= 0.9;
-            }
-        }
-        _ => (),
+// fn zoom input system
+fn zoom_input_system(
+    mouse_wheel: Res<AccumulatedMouseScroll>,
+    mut zoom: ResMut<Zoom>,
+    key_input: Res<ButtonInput<KeyCode>>,
+){
+    if mouse_wheel.delta.y < 0. || key_input.pressed(KeyCode::KeyJ) {
+        zoom.0 *= 1.01;
+    }
+    else if mouse_wheel.delta.y > 0. || key_input.pressed(KeyCode::KeyK) {
+        zoom.0 *= 0.99;
+    }
+}
+
+// fn zoom apply system
+fn zoom_apply_system(
+    camera: Single<&mut Projection, With<Camera>>,
+    zoom: Res<Zoom>,
+){
+    if let Projection::Orthographic(orthographic) = &mut *camera.into_inner() {
+        orthographic.scale = zoom.0;
     }
 }
 
@@ -283,8 +302,8 @@ fn ant_eating(
                         &mut materials,
                         &ant_mesh,
                         ant_transform.clone(),
-                        speed.0 + rng.random_range(-10.0..10.0),
-                        vision.0 + rng.random_range(-10.0..10.0),
+                        (speed.0 + rng.random_range(-50.0..50.0)).max(10.),
+                        (vision.0 + rng.random_range(-50.0..50.0)).max(10.),
                     );
                 }
             }
@@ -369,6 +388,28 @@ fn time_multiplier_system(
     if key_input.pressed(KeyCode::KeyH) {
         time_multiplier.0 *= 0.99;
     }
+    // info!("multiplier is {}", time_multiplier.0);
 }
 
+// fn camera movement system
+fn camera_movement_system(
+    key_input: Res<ButtonInput<KeyCode>>,
+    mut camera: Single<&mut Transform, With<Camera2d>>,
+    time: Res<Time>,
+    zoom: Res<Zoom>,
+) {
+    let dt = time.delta_secs();
+    if key_input.pressed(KeyCode::KeyW) {
+        camera.translation.y += 1000. * dt * zoom.0;
+    }
+    if key_input.pressed(KeyCode::Space) {
+        camera.translation.y -= 1000. * dt * zoom.0;
+    }
+    if key_input.pressed(KeyCode::KeyA) {
+        camera.translation.x -= 1000. * dt * zoom.0;
+    }
+    if key_input.pressed(KeyCode::KeyD) {
+        camera.translation.x += 1000. * dt * zoom.0;
+    }
+}
 
