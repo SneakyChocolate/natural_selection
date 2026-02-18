@@ -55,7 +55,7 @@ pub fn spawn_ant(
         Velocity::default(),
         Mesh2d(ant_mesh.0.clone()),
         MeshMaterial2d(materials.add(Color::srgb(0., 1., 0.))),
-        Speed(100.),
+        Speed(200.),
 
         children![(
             Mesh2d(meshes.add(Circle::new(100.0).to_ring(2.))),
