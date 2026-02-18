@@ -15,12 +15,19 @@ pub struct AntMesh(pub Handle<Mesh>);
 #[derive(Component)]
 pub struct Ant;
 
+// cp velocity
+#[derive(Component, Default, Copy, Clone)]
+pub struct Velocity {
+    pub x: f32,
+    pub y: f32,
+}
+
 // fn main
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
-        .add_systems(Update, ant_movement)
+        .add_systems(Update, (velocity_system, ant_movement))
         .run()
     ;
 }
@@ -37,6 +44,7 @@ fn setup(
 
     commands.spawn((
         Ant,
+        Velocity::default(),
         Mesh2d(antmesh.clone()),
         MeshMaterial2d(materials.add(Color::srgb(0., 1., 0.))),
 
@@ -52,10 +60,22 @@ fn setup(
 
 // fn ant movement
 fn ant_movement(
-    ant_query: Query<&mut Transform, With<Ant>>,
+    ant_query: Query<&mut Velocity, With<Ant>>,
 ) {
-    for mut transform in ant_query {
-        transform.translation.x += 1.;
+    for mut velocity in ant_query {
+        velocity.x += 1.;
+    }
+}
+
+// fn velocity system
+fn velocity_system(
+    query: Query<(&mut Transform, &Velocity)>,
+    time: Res<Time>,
+) {
+    let dt = time.delta_secs();
+    for (mut transform, velocity) in query {
+        transform.translation.x += velocity.x * dt;
+        transform.translation.y += velocity.y * dt;
     }
 }
 
