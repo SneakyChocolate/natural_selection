@@ -183,6 +183,7 @@ fn main() {
             ant_eating,
         ))
         .add_systems(Update, (
+            ant_color_system,
             food_color_system,
             despawn_food_system,
             delta_time_system,
@@ -392,6 +393,18 @@ fn food_color_system(
     for (material_handle, food) in query {
         if let Some (material) = materials.get_mut(material_handle) {
             material.color.set_alpha(food.percentage());
+        }
+    }
+}
+
+// fn ant color system
+fn ant_color_system(
+    query: Query<(&MeshMaterial2d<ColorMaterial>, &Hunger), With<Ant>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (material_handle, hunger) in query {
+        if let Some (material) = materials.get_mut(material_handle) {
+            material.color = Color::srgb(0., hunger.percentage(), 0.);
         }
     }
 }
