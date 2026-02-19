@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 /*
 
 // fn == function
@@ -7,16 +5,29 @@ use std::sync::Arc;
 // rs == bevy resource
 
 */
-use bevy::{input::mouse::AccumulatedMouseScroll, prelude::*};
 use rand::RngExt;
+use bevy::{input::mouse::AccumulatedMouseScroll, prelude::*};
+
+const CHUNK_COUNT: usize = 100 * 100;
 
 // rs ant mesh
 #[derive(Resource)]
 pub struct AntMesh(pub Handle<Mesh>);
 
-// rs ant mesh
+// rs food chunks
 #[derive(Resource)]
-pub struct FoodChunks(pub [Vec<Entity>; 100 * 100]);
+pub struct FoodChunks(pub [Vec<Entity>; CHUNK_COUNT]);
+
+// rs ant chunks
+#[derive(Resource)]
+pub struct AntChunks(pub [Vec<Entity>; CHUNK_COUNT]);
+
+// rs position boundaries
+#[derive(Resource, Default)]
+pub struct PositionBoundaries{
+    pub min: Vec2,
+    pub max: Vec2,
+}
 
 // rs zoom
 #[derive(Resource)]
@@ -144,6 +155,16 @@ pub fn spawn_food(
     ));
 }
 
+// fn spawn camera
+pub fn spawn_camera(
+    commands: &mut Commands,
+) {
+    commands.spawn((
+        Camera2d,
+        Transform::default(),
+    ));
+}
+
 // fn main
 fn main() {
     App::new()
@@ -167,6 +188,7 @@ fn main() {
             delta_time_system,
             time_multiplier_system,
             camera_movement_system,
+            update_position_boundaries,
         ))
         .run()
     ;
@@ -182,7 +204,9 @@ fn setup(
     commands.insert_resource(DeltaTime(0.));
     commands.insert_resource(TimeMultiplier(1.));
     commands.insert_resource(Zoom(1.));
-    commands.insert_resource(FoodChunks(std::array::from_fn(|_| Vec::with_capacity(300))));
+    commands.insert_resource(FoodChunks(std::array::from_fn(|_| Vec::with_capacity(20))));
+    commands.insert_resource(AntChunks(std::array::from_fn(|_| Vec::with_capacity(100))));
+    commands.insert_resource(PositionBoundaries::default());
 }
 
 // fn spawn entities
@@ -195,13 +219,10 @@ fn spawn_entities(
 ) {
     let mut rng = rand::rng();
 
-    commands.spawn((
-        Camera2d,
-        Transform::default(),
-    ));
+    spawn_camera(&mut commands);
 
     // spawn ants
-    for _ in 0..10 {
+    for _ in 0..400 {
         spawn_ant(
             &mut commands,
             &mut meshes,
@@ -214,15 +235,15 @@ fn spawn_entities(
     }
 
     // spawn food
-    for _ in 0..2000 {
+    for _ in 0..800 {
         spawn_food(
             &mut commands,
             &mut meshes,
             &mut materials,
             &food_mesh,
             Transform::from_xyz(
-                rng.random_range(-10000.0..10000.0),
-                rng.random_range(-10000.0..10000.0),
+                rng.random_range(-20000.0..20000.0),
+                rng.random_range(-20000.0..20000.0),
                 0.,
             )
         );
@@ -263,14 +284,14 @@ fn ant_movement(
     for (ant_transform, mut velocity, ant_speed, ant_hunger, ant_vision) in ant_query {
         velocity.0.x += rng.random_range(-1000.0..1000.0) * dt.0;
         velocity.0.y += rng.random_range(-1000.0..1000.0) * dt.0;
-        if velocity.0.length() > ant_speed.0 {
+        if velocity.0.length_squared() > ant_speed.0.powi(2) {
             velocity.0 = velocity.0.normalize_or_zero() * ant_speed.0;
         }
 
         if ant_hunger.percentage() < 0.8 {
             for food_transform in food_query {
                 let delta_translation = food_transform.translation - ant_transform.translation;
-                if delta_translation.length() < ant_vision.0 {
+                if delta_translation.length_squared() < ant_vision.0.powi(2) {
                     let new_velocity = delta_translation.normalize_or_zero() * ant_speed.0;
                     velocity.0.x = new_velocity.x;
                     velocity.0.y = new_velocity.y;
@@ -296,21 +317,21 @@ fn ant_eating(
 
         for (food_transform, mut food_value) in &mut food_query {
             let delta_translation = food_transform.translation - ant_transform.translation;
-            if delta_translation.length() < 20. {
+            if delta_translation.length_squared() < 20_f32.powi(2) {
                 let needed = ant_hunger.needed();
                 let taking = food_value.current.min(needed);
                 food_value.current -= taking;
                 ant_hunger.current += taking;
 
-                for _ in 0..4 {
+                for _ in 0..2 {
                     spawn_ant(
                         &mut commands,
                         &mut meshes,
                         &mut materials,
                         &ant_mesh,
                         ant_transform.clone(),
-                        (speed.0 + rng.random_range(-50.0..50.0)).max(10.),
-                        (vision.0 + rng.random_range(-50.0..50.0)).max(10.),
+                        (speed.0 + rng.random_range(-100.0..100.0)).max(10.),
+                        (vision.0 + rng.random_range(-100.0..100.0)).max(10.),
                     );
                 }
             }
@@ -420,3 +441,27 @@ fn camera_movement_system(
     }
 }
 
+// fn update position boundaries
+fn update_position_boundaries(
+    mut boundaries: ResMut<PositionBoundaries>,
+    positions: Query<&Transform>,
+) {
+    let mut min = Vec2::default();
+    let mut max = Vec2::default();
+    for transform in positions {
+        if transform.translation.x < min.x {
+            min.x = transform.translation.x;
+        }
+        if transform.translation.y < min.y {
+            min.y = transform.translation.y;
+        }
+        if transform.translation.x > max.x {
+            max.x = transform.translation.x;
+        }
+        if transform.translation.y > max.y {
+            max.y = transform.translation.y;
+        }
+    }
+    boundaries.min = min;
+    boundaries.max = max;
+}
