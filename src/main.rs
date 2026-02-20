@@ -25,6 +25,9 @@ pub struct PositionBoundaries{
     pub max: Vec2,
 }
 
+/// cp level
+#[derive(Component)]
+pub struct Evolution(pub usize);
 
 /// cp speed
 #[derive(Component)]

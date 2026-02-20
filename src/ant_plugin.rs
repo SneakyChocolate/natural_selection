@@ -1,6 +1,7 @@
 use bevy::{prelude::*};
 use rand::RngExt;
 
+use crate::Evolution;
 use crate::{Hunger, Speed, Velocity, Vision, spectating_plugin::DeltaTime};
 use crate::food_plugin::Food;
 
@@ -23,6 +24,9 @@ pub struct AntMesh(pub Handle<Mesh>);
 #[derive(Component)]
 pub struct Ant;
 
+/// cp ant queen
+#[derive(Component)]
+pub struct AntQueen;
 
 /// fn spawn ant
 pub fn spawn_ant(
@@ -36,6 +40,7 @@ pub fn spawn_ant(
 ) {
     commands.spawn((
         Ant,
+        Evolution(0),
         Hunger::new(20.),
         Velocity::default(),
         Mesh2d(ant_mesh.0.clone()),
@@ -91,12 +96,12 @@ fn ant_eating(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     ant_mesh: Res<AntMesh>,
-    mut ant_query: Query<(&Transform, &mut Hunger, &Speed, &Vision), With<Ant>>,
+    mut ant_query: Query<(&Transform, &mut Hunger, &Speed, &Vision, &mut Evolution), With<Ant>>,
     mut food_query: Query<(&Transform, &mut Food)>,
 ) {
     let mut rng = rand::rng();
 
-    for (ant_transform, mut ant_hunger, speed, vision) in &mut ant_query {
+    for (ant_transform, mut ant_hunger, speed, vision, mut evolultion) in &mut ant_query {
         if ant_hunger.percentage() >= 0.8 {continue;}
 
         for (food_transform, mut food_value) in &mut food_query {
@@ -106,8 +111,14 @@ fn ant_eating(
                 let taking = food_value.current.min(needed);
                 food_value.current -= taking;
                 ant_hunger.current += taking;
+                evolultion.0 += 1;
 
-                for _ in 0..2 {
+                if evolultion.0 == 5 {
+                    // build nest
+                    
+                }
+
+                for _ in 0..1 {
                     spawn_ant(
                         &mut commands,
                         &mut meshes,
