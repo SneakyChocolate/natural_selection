@@ -124,7 +124,13 @@ fn spawn_entities(
     spawn_camera(&mut commands);
 
     // spawn ants
-    for _ in 0..400 {
+    let nest_entity = spawn_ant_nest(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        Transform::from_xyz(0., 0., -1.),
+    );
+    for _ in 0..200 {
         spawn_ant(
             &mut commands,
             &mut meshes,
@@ -133,6 +139,17 @@ fn spawn_entities(
             Transform::default(),
             200.,
             100.,
+            nest_entity,
+        );
+        spawn_ant(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &ant_mesh,
+            Transform::default(),
+            (200_f32 + rng.random_range(-100.0..100.0)).max(10.),
+            (100_f32 + rng.random_range(-50.0..50.0)).max(10.),
+            nest_entity,
         );
     }
 

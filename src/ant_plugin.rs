@@ -20,9 +20,23 @@ impl Plugin for AntPlugin {
 #[derive(Resource)]
 pub struct AntMesh(pub Handle<Mesh>);
 
+/// cp ant nest
+#[derive(Component)]
+pub struct AntNest;
+
 /// cp ant
 #[derive(Component)]
-pub struct Ant;
+pub struct Ant {
+    pub nest: Entity,
+}
+
+impl Ant {
+    pub fn new(nest: Entity) -> Self {
+        Self {
+            nest,
+        }
+    }
+}
 
 /// cp ant queen
 #[derive(Component)]
@@ -37,9 +51,10 @@ pub fn spawn_ant(
     transform: Transform,
     speed: f32,
     vision: f32,
-) {
+    nest: Entity,
+) -> Entity {
     commands.spawn((
-        Ant,
+        Ant::new(nest),
         Evolution(0),
         Hunger::new(20.),
         Velocity::default(),
@@ -60,7 +75,21 @@ pub fn spawn_ant(
         ],
     
         transform,
-    ));
+    )).id()
+}
+
+/// fn spawn ant nest
+pub fn spawn_ant_nest(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    transform: Transform,
+) -> Entity {
+    commands.spawn((
+        Mesh2d(meshes.add(Circle::new(100.))),
+        MeshMaterial2d(materials.add(Color::srgb(0.5, 0.3, 0.2))),
+        transform,
+    )).id()
 }
 
 /// sy ant movement
@@ -113,22 +142,29 @@ fn ant_eating(
                 ant_hunger.current += taking;
                 evolultion.0 += 1;
 
-                if evolultion.0 == 5 {
+                if evolultion.0 == 2 {
                     // build nest
-                    
-                }
-
-                for _ in 0..1 {
-                    spawn_ant(
+                    let nest_entity = spawn_ant_nest(
                         &mut commands,
                         &mut meshes,
                         &mut materials,
-                        &ant_mesh,
-                        ant_transform.clone(),
-                        (speed.0 + rng.random_range(-100.0..100.0)).max(10.),
-                        (vision.0 + rng.random_range(-100.0..100.0)).max(10.),
+                        Transform::from_xyz(ant_transform.translation.x, ant_transform.translation.y, -1.),
                     );
+                    
+                    for _ in 0..10 {
+                        spawn_ant(
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            &ant_mesh,
+                            ant_transform.clone(),
+                            (speed.0 + rng.random_range(-100.0..100.0)).max(10.),
+                            (vision.0 + rng.random_range(-100.0..100.0)).max(10.),
+                            nest_entity,
+                        );
+                    }
                 }
+
             }
         }
     }
