@@ -15,6 +15,7 @@ use bevy::{prelude::*};
 /// sy == bevy system
 /// cp == bevy component
 /// rs == bevy resource
+/// pl == bevy plugin
 
 */
 
@@ -25,9 +26,13 @@ pub struct PositionBoundaries{
     pub max: Vec2,
 }
 
-/// cp level
+/// cp evolution
 #[derive(Component)]
 pub struct Evolution(pub usize);
+
+/// cp lifetime
+#[derive(Component)]
+pub struct Lifetime(pub f32);
 
 /// cp speed
 #[derive(Component)]
@@ -79,12 +84,13 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, (
             setup,
-            spawn_entities
+            spawn_entities,
         ).chain())
         .add_systems(Update, (
             velocity_system,
             hunger_system,
             kill_system,
+            lifetime_system,
         ))
         .add_systems(Update, (
             despawn_food_system,
@@ -104,6 +110,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     commands.insert_resource(AntMesh(meshes.add(Circle::new(10.0))));
+    commands.insert_resource(AntPheromoneMesh(meshes.add(Circle::new(5.))));
     commands.insert_resource(FoodMesh(meshes.add(Circle::new(20.0))));
     commands.insert_resource(DeltaTime(0.));
     commands.insert_resource(TimeMultiplier(1.));
@@ -192,13 +199,29 @@ fn hunger_system(
     }
 }
 
+/// sy lifetime system
+fn lifetime_system(
+    query: Query<(&mut Lifetime)>,
+    dt: Res<DeltaTime>,
+) {
+    for mut value in query {
+        value.0 -= dt.0;
+    }
+}
+
 /// sy kill system
 fn kill_system(
     mut commands: Commands,
-    query: Query<(Entity, &Hunger)>,
+    hunger_query: Query<(Entity, &Hunger)>,
+    lifetime_query: Query<(Entity, &Lifetime)>,
 ) {
-    for (entity, hunger) in query {
+    for (entity, hunger) in hunger_query {
         if hunger.current <= 0. {
+            commands.entity(entity).despawn();
+        }
+    }
+    for (entity, lifetime) in lifetime_query {
+        if lifetime.0 <= 0. {
             commands.entity(entity).despawn();
         }
     }

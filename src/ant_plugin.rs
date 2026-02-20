@@ -4,7 +4,9 @@ use rand::RngExt;
 use crate::Evolution;
 use crate::{Hunger, Speed, Velocity, Vision, spectating_plugin::DeltaTime};
 use crate::food_plugin::Food;
+use crate::Lifetime;
 
+/// pl ant plugin
 pub struct AntPlugin;
 impl Plugin for AntPlugin {
     fn build(&self, app: &mut App) {
@@ -12,6 +14,7 @@ impl Plugin for AntPlugin {
     		.add_systems(Update, ant_movement)
     		.add_systems(Update, ant_eating)
     		.add_systems(Update, ant_color_system)
+    		.add_systems(Update, ant_pheromone_timer_system)
     	;
     }
 }
@@ -19,6 +22,21 @@ impl Plugin for AntPlugin {
 /// rs ant mesh
 #[derive(Resource)]
 pub struct AntMesh(pub Handle<Mesh>);
+
+/// rs ant mesh
+#[derive(Resource)]
+pub struct AntPheromoneMesh(pub Handle<Mesh>);
+
+/// cp ant distance tracker
+#[derive(Component, Default)]
+pub struct AntPheromoneTimer(pub f32);
+
+/// cp ant pheromone
+#[derive(Component)]
+pub enum AntPheromone {
+    FromBase,
+    FromFood,
+}
 
 /// cp ant nest
 #[derive(Component)]
@@ -62,6 +80,7 @@ pub fn spawn_ant(
         MeshMaterial2d(materials.add(Color::srgb(0., 1., 0.))),
         Speed(speed),
         Vision(vision),
+        AntPheromoneTimer::default(),
 
         children![
             (
@@ -88,6 +107,23 @@ pub fn spawn_ant_nest(
     commands.spawn((
         Mesh2d(meshes.add(Circle::new(100.))),
         MeshMaterial2d(materials.add(Color::srgb(0.5, 0.3, 0.2))),
+        transform,
+    )).id()
+}
+
+/// fn spawn ant pheromone
+pub fn spawn_ant_pheromone(
+    commands: &mut Commands,
+    ant_pheromone_mesh: &Res<AntPheromoneMesh>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    transform: Transform,
+    pheromone: AntPheromone,
+) -> Entity {
+    commands.spawn((
+        Lifetime(20.),
+        pheromone,
+        Mesh2d(ant_pheromone_mesh.0.clone()),
+        MeshMaterial2d(materials.add(Color::srgba(0.8, 0.5, 0.8, 0.2))),
         transform,
     )).id()
 }
@@ -151,7 +187,7 @@ fn ant_eating(
                         Transform::from_xyz(ant_transform.translation.x, ant_transform.translation.y, -1.),
                     );
                     
-                    for _ in 0..10 {
+                    for _ in 0..20 {
                         spawn_ant(
                             &mut commands,
                             &mut meshes,
@@ -178,6 +214,30 @@ fn ant_color_system(
     for (material_handle, hunger) in query {
         if let Some (material) = materials.get_mut(material_handle) {
             material.color = Color::srgb(0., hunger.percentage(), 0.);
+        }
+    }
+}
+
+/// sy ant pheromone timer system
+fn ant_pheromone_timer_system(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    ant_pheromone_mesh: Res<AntPheromoneMesh>,
+    query: Query<(&mut AntPheromoneTimer, &Transform), With<Ant>>,
+    dt: Res<DeltaTime>,
+) {
+    for (mut timer, transform) in query {
+        timer.0 += dt.0;
+
+        if timer.0 >= 2. {
+            timer.0 = 0.;
+            spawn_ant_pheromone(
+                &mut commands,
+                &ant_pheromone_mesh,
+                &mut materials,
+                *transform,
+                AntPheromone::FromBase,
+            );
         }
     }
 }
